@@ -2,37 +2,38 @@
 
 If this documention has denied, please contact L1uTongwei\<1347277058@qq.com\> to delete.
 
-For easy, I will just write important information, no whole HTTP request.
+This documention is for EasyEDA 6.5.40.
 
 ### Bind Port
 
-First EasyEDA listen http://127.0.0.1:3579 for address 0.0.0.0
+First EasyEDA Auto-router listen port 3579 for address 0.0.0.0
 
-### /api/whois
-
-I use EasyEDA 6.5.40.
+### GET /api/whois (Check if Auto-router online)
 
 If EasyEDA will check local router, it will send a "whois" request first.
+
+EasyEDA will send a GET request like: `/api/whois?version=6.5.40`.
+
+The query argument `version` is the version of EasyEDA.
+
+If the EasyEDA's version is too low, you may refuse the request to make EasyEDA think no auto-router vaild.
 
 ```
 HTTP GET /api/whois?version=6.5.40 HTTP/1.1 
 Full request URI: http://127.0.0.1:3579/api/whois?version=6.5.40
-User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) LCEDA/6.5.40 Chrome/102.0.5005.167 Electron/19.1.9 Safari/537.36 EasyEDA-Editor/6.5.40 (Online Mode)
-Origin: https://lceda.cn
 ```
 
-Then the server return:
+Then the server return a string with HTTP data:
 
 ```
-HTTP/1.1 200 OK
-With Data: 45617379454441204175746f20526f75746572 ("EasyEDA Auto Router")
+EasyEDA Auto Router
 ```
 
-And then the EasyEDA will know this is an available router.
+And then the EasyEDA will know this is an available auto-router.
 
-### /router
+### GET /router (Websocket Connection)
 
-/router API will let server switch protocol to Websocket.
+/router is a Websocket connection between EasyEDA & auto-router.
 
 So this is a Websocket URI: ws://127.0.0.1:3579/router
 
@@ -55,42 +56,74 @@ Connection: Upgrade
 Sec-WebSocket-Accept: (Hide for different values)
 ```
 
-### Websocket Connection
+This is a standrand handshake of Websocket, to build a vaild Websocket connection.
 
-#### heartbeat
+See https://websockets.spec.whatwg.org//#websocket-opening-handshake.
+
+#### in created Websocket Connection
+
+##### heartbeat
 
 Sometimes the EasyEDA will send message `{"a": "heartbeat"}` to check if connection is alive.
 
 You don't need to reply this.
 
-#### startRoute
+##### startRoute
 
 EasyEDA use a `startRoute` message to let router work.
+
+A `startRoute` massage set some option in auto-routing progress.
+
+`data` is a standrand .DSN format string, to provide a to-be-routed board design.
+
+EasyEDA doesn't have any settings to change the value of `timeout`, `progressInterval` & `optimizeTime`, So I cannot sure what these are.
+
+In fact, they are never changed for all boards.
 
 Message:
 
 ```json
 {
     "a": "startRoute",
-    "data": "", //This is a standrand .DSN file
+    "data": "",
     "timeout": 300, 
     "progressInterval": 2,
     "optimizeTime": 3
 }
 ```
 
-#### routingProgress
+##### routingProgress
 
 EasyEDA receive a `routingProgress` message to update routing progress.
+
+`data` here is to let EasyEDA real-time display.
+
+`data` is a array, but in object format (index is field name).
+
+Every element in `data` (mean a net) has three childs: `wires`, `vias` & `net`.
+
+`net` is the net's name.
+
+`vias` is a (x, y) array, to locate every vias' location.
+
+Sure, vias' diameters informations are in .DSN design rules.
+
+`wires` is a wires' array.
+
+A wire has three childs: `layerid` (Layer's ID), `width` (wire width), `points`.
+
+I am not a professional at SVG, but I guess `points` is a path (maybe).
+
+`inCompleteNetNum` is incomplete nets for now.
 
 Message:
 
 ```json
 {
     "a": "routingProgress",
-    "inCompleteNetNum": 13, //Incomplete Net Number
+    "inCompleteNetNum": 13,
     "data": {
-        "1": { // Just a index (Why not array?)
+        "1": {
             "wires": [
                 {
                     "layerid": 1,
@@ -110,20 +143,22 @@ Message:
                     "y": -175.245
                 }
             ],
-            "net": "L1_1" // Net name
+            "net": "L1_1"
         },
         //...
     }
 }
 ```
 
-Every `progressInterval` times route you must report it with `routingProgress` message.
-
-If a progress's deadline `timeout` reached, EasyEDA will end it.
-
-#### routingResult
+##### routingResult
 
 if routing is completed, a `routingResult` message must send to EasyEDA.
+
+The `data` here is the same as `startRoute`.
+
+`complete` is for success(1) or failure(0).
+
+`inCompleteNetNum` is incomplete nets if failure.
 
 Message:
 
@@ -135,3 +170,7 @@ Message:
     "data": "" //The same as `routingProgress` data
 }
 ```
+
+EasyEDA through `data` to get the route result.
+
+To convient all users, I upload the network activities in this repo.
